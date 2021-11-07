@@ -10,25 +10,42 @@ import (
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
+	"github.com/kelseyhightower/envconfig"
+	"gopkg.in/yaml.v3"
 )
 
 type Messages []*discordgo.Message
+type Config struct {
+	Guild struct {
+		Id string `yaml:"id"`
+	} `yaml:"guild"`
+}
+type AuthConfig struct {
+	Discord struct {
+		Token string `envconfig:"DISCORD_TOKEN"`
+	}
+}
 
-const OCM_DISCORD_GUILD_ID = "897425025827766322"
 const MAX_MESSAGE_HISTORY_COUNT = 100
 const BEST_POSTS_COUNT = 10
 
+var guildId string
+
 func main() {
 
+	// Load config from config.yml and env variables
+	cfg, acfg := setupConfig()
+	guildId = cfg.Guild.Id
+
 	// Create a new Discord session using the provided bot token.
-	dg, err := discordgo.New("Bot " + os.Getenv("DISCORD_TOKEN"))
+	dg, err := discordgo.New("Bot " + acfg.Discord.Token)
 	if err != nil {
 		fmt.Println("error creating Discord session,", err)
 		return
 	}
 
 	// Register the messageCreate func as a callback for MessageCreate events.
-	dg.AddHandler(messageCreate)
+	dg.AddHandler(handleMessage)
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
@@ -47,9 +64,31 @@ func main() {
 	dg.Close()
 }
 
+func setupConfig() (cfg Config, acfg AuthConfig) {
+	f, err := os.Open("config.yml")
+	if err != nil {
+		fmt.Println("error reading config.yml", err)
+		return
+	}
+	defer f.Close()
+
+	err = yaml.NewDecoder(f).Decode(&cfg)
+	if err != nil {
+		fmt.Println("error decoding config.yml", err)
+		return
+	}
+	guildId = cfg.Guild.Id
+
+	err = envconfig.Process("", &acfg)
+	if err != nil {
+		fmt.Println("error decoding config.yml", err)
+	}
+	return cfg, acfg
+}
+
 // This function will be called (due to AddHandler above) every time a new
 // message is created on any channel that the autenticated bot has access to.
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
+func handleMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	// Ignore all messages created by the bot itself
 	// This isn't required in this specific example but it's a good practice.
@@ -94,7 +133,7 @@ func BuildTopPostsDirectMessage(channelId string, msgs Messages) string {
 	sb.WriteString("Here are the top posts in the channel\n\n")
 	for i, m := range msgs {
 		sb.WriteString("#" + strconv.Itoa(i+1) + " by: " + m.Author.Username + " > ")
-		sb.WriteString("https://discord.com/channels/" + OCM_DISCORD_GUILD_ID + "/" + channelId + "/" + m.ID)
+		sb.WriteString("https://discord.com/channels/" + guildId + "/" + channelId + "/" + m.ID)
 		sb.WriteString("\n")
 	}
 	return sb.String()
