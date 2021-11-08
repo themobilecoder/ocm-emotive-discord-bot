@@ -8,15 +8,12 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/kelseyhightower/envconfig"
-	"gopkg.in/yaml.v3"
 )
 
 type Config struct {
 	Guild struct {
-		Id string `yaml:"id"`
-	} `yaml:"guild"`
-}
-type AuthConfig struct {
+		Id string `envconfig:"DISCORD_GUILD_ID"`
+	}
 	Discord struct {
 		Token string `envconfig:"DISCORD_TOKEN"`
 	}
@@ -27,11 +24,11 @@ var guildId string
 func main() {
 
 	// Load config and env variables
-	cfg, acfg := setupConfig()
+	cfg := setupConfig()
 	guildId = cfg.Guild.Id
 
 	// Create a new Discord session using the provided bot token.
-	dg, err := discordgo.New("Bot " + acfg.Discord.Token)
+	dg, err := discordgo.New("Bot " + cfg.Discord.Token)
 	if err != nil {
 		fmt.Println("error creating Discord session,", err)
 		return
@@ -56,26 +53,12 @@ func main() {
 	dg.Close()
 }
 
-func setupConfig() (cfg Config, acfg AuthConfig) {
-	f, err := os.Open("config.yml")
+func setupConfig() (cfg Config) {
+	err := envconfig.Process("", &cfg)
 	if err != nil {
-		fmt.Println("error reading config.yml", err)
-		return
+		fmt.Println("error decoding env variables", err)
 	}
-	defer f.Close()
-
-	err = yaml.NewDecoder(f).Decode(&cfg)
-	if err != nil {
-		fmt.Println("error decoding config.yml", err)
-		return
-	}
-	guildId = cfg.Guild.Id
-
-	err = envconfig.Process("", &acfg)
-	if err != nil {
-		fmt.Println("error decoding config.yml", err)
-	}
-	return cfg, acfg
+	return cfg
 }
 
 //Callback for MessageCreate events

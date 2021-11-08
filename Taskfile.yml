@@ -1,0 +1,10 @@
+version: '3'
+
+tasks:
+  build:
+    cmds:
+      - go build -o bin/emotive -v main.go handlers.go
+  run:
+    cmds:
+      - task: build
+      - bin/emotive
